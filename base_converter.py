@@ -51,7 +51,8 @@ def _comparar(a: list[int], b: list[int]) -> int:
     return 0
 
 
-def _somar_grandes(a: list[int], b: list[int], base: int) -> list[int]:
+def _somar_listas_de_digitos(a: list[int], b: list[int], base: int) -> list[int]:
+    """Soma dois números representados por listas na mesma base."""
     i, j, transporte = len(a) - 1, len(b) - 1, 0
     resultado: list[int] = []
     while i >= 0 or j >= 0 or transporte:
@@ -87,9 +88,10 @@ def _subtrair_grandes(a: list[int], b: list[int], base: int) -> list[int]:
     return _normalizar(resultado)
 
 
-def _multiplicar_por_digito(
+def _multiplicar_lista_por_fator(
     digitos: list[int], multiplicador: int, base: int
 ) -> list[int]:
+    """Multiplica a lista por um fator pequeno, como um dígito ou uma base."""
     if multiplicador == 0 or _zero(digitos):
         return [0]
     resultado: list[int] = []
@@ -105,7 +107,8 @@ def _multiplicar_por_digito(
     return _normalizar(resultado)
 
 
-def _inteiro_pequeno(valor: int, base: int) -> list[int]:
+def _representar_coeficiente_na_base(valor: int, base: int) -> list[int]:
+    """Escreve o valor de um dígito da entrada como lista na base desejada."""
     if valor == 0:
         return [0]
     digitos: list[int] = []
@@ -116,11 +119,13 @@ def _inteiro_pequeno(valor: int, base: int) -> list[int]:
     return digitos
 
 
-def _adicionar_digito(digitos: list[int], valor: int, base: int) -> list[int]:
-    return _somar_grandes(digitos, _inteiro_pequeno(valor, base), base)
+def _somar_coeficiente_na_lista(digitos: list[int], valor: int, base: int) -> list[int]:
+    """Representa o coeficiente na base de trabalho e o soma à lista."""
+    return _somar_listas_de_digitos(digitos, _representar_coeficiente_na_base(valor, base), base)
 
 
-def _multiplicar_grandes(a: list[int], b: list[int], base: int) -> list[int]:
+def _multiplicar_listas_de_digitos(a: list[int], b: list[int], base: int) -> list[int]:
+    """Multiplica dois números representados por listas na mesma base."""
     if _zero(a) or _zero(b):
         return [0]
     resultado = [0] * (len(a) + len(b))
@@ -147,7 +152,7 @@ def _dividir_grandes(
         digito_quociente = 0
         candidato = base - 1
         while candidato > 0:
-            produto = _multiplicar_por_digito(divisor, candidato, base)
+            produto = _multiplicar_lista_por_fator(divisor, candidato, base)
             if _comparar(produto, resto) <= 0:
                 digito_quociente = candidato
                 resto = _subtrair_grandes(resto, produto, base)
@@ -194,25 +199,30 @@ def _analisar_numero(numero: str, base: int) -> tuple[int, list[int], int]:
     return sinal, digitos, casas
 
 
-def _para_fracao(numero: str, base_origem: int, base_trabalho: int) -> _Fracao:
+def _converter_para_base_destino(
+    numero: str, base_origem: int, base_trabalho: int
+) -> _Fracao:
+    """Usa Horner para construir uma fração exata na base de destino."""
     sinal, digitos_origem, casas = _analisar_numero(numero, base_origem)
     _validar_base(base_trabalho)
     # Método de Horner: acumula diretamente na base de trabalho.
-    numerador = [0]
+    acumulador = [0]
     for digito in digitos_origem:
-        numerador = _multiplicar_por_digito(numerador, base_origem, base_trabalho)
-        numerador = _adicionar_digito(numerador, digito, base_trabalho)
+        acumulador = _multiplicar_lista_por_fator(acumulador, base_origem, base_trabalho)
+        acumulador = _somar_coeficiente_na_lista(acumulador, digito, base_trabalho)
     denominador = [1]
     for _ in range(casas):
-        denominador = _multiplicar_por_digito(
+        denominador = _multiplicar_lista_por_fator(
             denominador, base_origem, base_trabalho
         )
-    if _zero(numerador):
+    if _zero(acumulador):
         sinal = 0
-    return _Fracao(sinal, numerador, denominador)
+    # Ao terminar Horner, o acumulador é o numerador da fração convertida.
+    return _Fracao(sinal, acumulador, denominador)
 
 
-def _formatar(fracao: _Fracao, base: int) -> Resultado:
+def _gerar_texto_resultado(fracao: _Fracao, base: int) -> Resultado:
+    """Gera os símbolos da parte inteira e de até dez casas fracionárias."""
     parte_inteira, resto = _dividir_grandes(
         fracao.numerador, fracao.denominador, base
     )
@@ -235,16 +245,19 @@ def _formatar(fracao: _Fracao, base: int) -> Resultado:
 
 def converter(numero: str, base_origem: int, base_destino: int) -> Resultado:
     """Converte diretamente um número entre duas bases de 2 a 40."""
-    return _formatar(_para_fracao(numero, base_origem, base_destino), base_destino)
+    fracao_convertida = _converter_para_base_destino(
+        numero, base_origem, base_destino
+    )
+    return _gerar_texto_resultado(fracao_convertida, base_destino)
 
 
 def somar(numero1: str, base1: int, numero2: str, base2: int) -> Resultado:
     """Soma dois números e devolve o resultado na base do primeiro."""
-    primeira = _para_fracao(numero1, base1, base1)
-    segunda = _para_fracao(numero2, base2, base1)
-    esquerda = _multiplicar_grandes(primeira.numerador, segunda.denominador, base1)
-    direita = _multiplicar_grandes(segunda.numerador, primeira.denominador, base1)
-    denominador = _multiplicar_grandes(
+    primeira = _converter_para_base_destino(numero1, base1, base1)
+    segunda = _converter_para_base_destino(numero2, base2, base1)
+    esquerda = _multiplicar_listas_de_digitos(primeira.numerador, segunda.denominador, base1)
+    direita = _multiplicar_listas_de_digitos(segunda.numerador, primeira.denominador, base1)
+    denominador = _multiplicar_listas_de_digitos(
         primeira.denominador, segunda.denominador, base1
     )
     if primeira.sinal == 0:
@@ -253,7 +266,7 @@ def somar(numero1: str, base1: int, numero2: str, base2: int) -> Resultado:
         sinal, numerador = primeira.sinal, esquerda
     elif primeira.sinal == segunda.sinal:
         sinal = primeira.sinal
-        numerador = _somar_grandes(esquerda, direita, base1)
+        numerador = _somar_listas_de_digitos(esquerda, direita, base1)
     else:
         comparacao = _comparar(esquerda, direita)
         if comparacao == 0:
@@ -264,16 +277,16 @@ def somar(numero1: str, base1: int, numero2: str, base2: int) -> Resultado:
         else:
             sinal = segunda.sinal
             numerador = _subtrair_grandes(direita, esquerda, base1)
-    return _formatar(_Fracao(sinal, numerador, denominador), base1)
+    return _gerar_texto_resultado(_Fracao(sinal, numerador, denominador), base1)
 
 
 def multiplicar(numero1: str, base1: int, numero2: str, base2: int) -> Resultado:
     """Multiplica dois números e devolve o resultado na base do primeiro."""
-    primeira = _para_fracao(numero1, base1, base1)
-    segunda = _para_fracao(numero2, base2, base1)
-    numerador = _multiplicar_grandes(primeira.numerador, segunda.numerador, base1)
-    denominador = _multiplicar_grandes(
+    primeira = _converter_para_base_destino(numero1, base1, base1)
+    segunda = _converter_para_base_destino(numero2, base2, base1)
+    numerador = _multiplicar_listas_de_digitos(primeira.numerador, segunda.numerador, base1)
+    denominador = _multiplicar_listas_de_digitos(
         primeira.denominador, segunda.denominador, base1
     )
     sinal = 0 if _zero(numerador) else primeira.sinal * segunda.sinal
-    return _formatar(_Fracao(sinal, numerador, denominador), base1)
+    return _gerar_texto_resultado(_Fracao(sinal, numerador, denominador), base1)
